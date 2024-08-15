@@ -8,6 +8,8 @@ const fileUpload = require('express-fileupload');
 const serviceAccount = require('../serviceaccount.json');
 const https = require('https');
 const { ObjectId } = require('mongodb');
+const sharp = require('sharp');
+
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -32,72 +34,71 @@ Siteroute.route('/uploadfile').post(function (req, res) {
     console.log(req.body)
     const uploadPicture = function () {
         return new Promise((resolve, reject) => {
-
-            let bufferStream = new stream.PassThrough();
-            bufferStream.end(new Buffer.from(req.body.image.replace('data:image/jpeg;base64,', ''), 'base64'));
-
-            // Retrieve default storage bucket
-
-            // Create a reference to the new image file
-            const currentDate = new Date();
-            let file = bucket.file(`img/${currentDate.getTime().toString()}.jpg`);
-
-            bufferStream.pipe(file.createWriteStream({
-                metadata: {
-                    contentType: 'image/jpeg'
-                }
-            }))
-
-
-                .on('error', error => {
-                    reject(`news.provider#uploadPicture - Error while uploading picture ${JSON.stringify(error)}`);
-                })
-                .on('finish', (file) => {
-                    // The file upload is complete.
-                    console.log("news.provider#uploadPicture - Image successfully uploaded: ", JSON.stringify(file));
-                });
-
-            const config = {
-                action: 'read',
-                expires: '03-01-2500'
-            };
-            let downloadUrl = file.getSignedUrl(config, (error, url) => {
-                if (error) {
-                    reject(error);
-                }
-                console.log('download url ', url);
-                Siteuserd.findByIdAndUpdate(
-                    { _id: req.body._id },
-
-                    {
-                        imgurl: url
-
-                    },
-
-                    function (error, success) {
-                        if (error) {
-                            console.log(error)
-                            res.send('error')
-                        } else {
-                            if (!success) {
-
-                                res.send('invalid')
-                            }
-                            else {
-
-                                res.status(200).json({ 'Siteuserd': url });
-                            }
-
-                        }
+            // Decode the base64 image
+            const imageBuffer = Buffer.from(req.body.image.replace('data:image/jpeg;base64,', ''), 'base64');
+    
+            // Use sharp to process and compress the image
+            sharp(imageBuffer)
+                .resize(800) // Example resize, adjust as needed
+                .webp({ quality: 20 }) // Compress image
+                .toBuffer((err, compressedBuffer) => {
+                    if (err) {
+                        reject(`Error while compressing image: ${err}`);
+                        return;
                     }
-
-
-                )
-                resolve(url);
-
-
-            });
-        })
+    
+                    // Create a stream from the compressed image buffer
+                    const bufferStream = new stream.PassThrough();
+                    bufferStream.end(compressedBuffer);
+    
+                    // Create a reference to the new image file
+                    const currentDate = new Date();
+                    const file = bucket.file(`img/${currentDate.getTime().toString()}.jpg`);
+    
+                    bufferStream.pipe(file.createWriteStream({
+                        metadata: {
+                            contentType: 'image/jpeg'
+                        }
+                    }))
+                    .on('error', error => {
+                        reject(`Error while uploading picture: ${error}`);
+                    })
+                    .on('finish', () => {
+                        // Generate a signed URL for the uploaded image
+                        const config = {
+                            action: 'read',
+                            expires: '03-01-2500'
+                        };
+    
+                        file.getSignedUrl(config, (error, url) => {
+                            if (error) {
+                                reject(`Error while generating signed URL: ${error}`);
+                            } else {
+                                console.log('Download URL: ', url);
+    
+                                // Update database with the new image URL
+                                Siteuserd.findByIdAndUpdate(
+                                    { _id: req.body._id },
+                                    { imgurl: url },
+                                    (error, success) => {
+                                        if (error) {
+                                            console.log(error);
+                                            res.send('error');
+                                        } else {
+                                            if (!success) {
+                                                res.send('invalid');
+                                            } else {
+                                                res.status(200).json({ 'Siteuserd': url });
+                                            }
+                                        }
+                                    }
+                                );
+                                resolve(url);
+                            }
+                        });
+                    });
+                });
+        });
     };
     uploadPicture()
 
@@ -110,91 +111,95 @@ Siteroute.route('/uploadcert').post(function (req, res) {
     console.log(req.body)
     const uploadPicture = function () {
         return new Promise((resolve, reject) => {
-
-            let bufferStream = new stream.PassThrough();
-            let bufferStream2 = new stream.PassThrough();
-            bufferStream.end(new Buffer.from(req.body.front.replace('data:image/jpeg;base64,', ''), 'base64'));
-            bufferStream2.end(new Buffer.from(req.body.back.replace('data:image/jpeg;base64,', ''), 'base64'));
-
-            // Retrieve default storage bucket
-
-            // Create a reference to the new image file
-            const currentDate = new Date();
-            let file = bucket.file(`img/${currentDate.getTime().toString()}.jpg`);
-            let file2 = bucket.file(`img/${currentDate.getTime().toString()}56.jpg`);
-
-            bufferStream.pipe(file.createWriteStream({
-                metadata: {
-                    contentType: 'image/jpeg'
-                }
-            }))
-            bufferStream2.pipe(file2.createWriteStream({
-                metadata: {
-                    contentType: 'image/jpeg'
-                }
-            }))
-
-
-                .on('error', error => {
-                    reject(`news.provider#uploadPicture - Error while uploading picture ${JSON.stringify(error)}`);
-                })
-                .on('finish', (file) => {
-                    // The file upload is complete.
-                    console.log("news.provider#uploadPicture - Image successfully uploaded: ", JSON.stringify(file));
-                });
-
-            const config = {
-                action: 'read',
-                expires: '03-01-2500'
-            };
-            let downloadUrl = file.getSignedUrl(config, (error, url) => {
-
-                let downloadUrl2 = file2.getSignedUrl(config, (errorn, urlx) => {
-                    if (error) {
-                        reject(error);
-                    }
-                    console.log('download url ', url);
-
-
-                    Siteuserd.findByIdAndUpdate(
-                        { _id: req.body._id },
-                        {
-                            $push: {
-                                ids: {
-                                    idname: 'Certificate',
-                                    front: url,
-                                    back: urlx,
-                                }
+            // Helper function to process and upload an image
+            const processAndUploadImage = (imageBase64, fileName) => {
+                return new Promise((resolve, reject) => {
+                    const imageBuffer = Buffer.from(imageBase64.replace('data:image/jpeg;base64,', ''), 'base64');
+    
+                    // Compress and resize image using sharp
+                    sharp(imageBuffer)
+                        .resize(800) // Adjust size as needed
+                        .webp({ quality: 50 }) // Compress with WebP format and lower quality
+                        .toBuffer((err, compressedBuffer) => {
+                            if (err) {
+                                reject(`Error while processing image: ${err}`);
+                                return;
                             }
-
-                        },
-
-                        function (error, success) {
-                            if (error) {
-                                console.log(error)
-                                res.send('error')
-                            } else {
-                                if (!success) {
-
-                                    res.send('invalid')
+    
+                            // Create a stream from the compressed image buffer
+                            const bufferStream = new stream.PassThrough();
+                            bufferStream.end(compressedBuffer);
+    
+                            // Create a reference to the new image file
+                            const file = bucket.file(fileName);
+    
+                            bufferStream.pipe(file.createWriteStream({
+                                metadata: {
+                                    contentType: 'image/webp',
+                                    cacheControl: 'public, max-age=31536000' // Cache for 1 year
                                 }
-                                else {
-
-                                    res.status(200).json({ 'Siteuserd': url });
-                                }
-
+                            }))
+                            .on('error', error => {
+                                reject(`Error while uploading picture: ${error}`);
+                            })
+                            .on('finish', () => {
+                                const config = {
+                                    action: 'read',
+                                    expires: '03-01-2500'
+                                };
+    
+                                file.getSignedUrl(config, (error, url) => {
+                                    if (error) {
+                                        reject(`Error while generating signed URL: ${error}`);
+                                    } else {
+                                        resolve(url);
+                                    }
+                                });
+                            });
+                        });
+                });
+            };
+    
+            // Process and upload both images
+            const currentDate = new Date();
+            const frontFileName = `img/${currentDate.getTime().toString()}_front.webp`;
+            const backFileName = `img/${currentDate.getTime().toString()}_back.webp`;
+    
+            Promise.all([
+                processAndUploadImage(req.body.front, frontFileName),
+                processAndUploadImage(req.body.back, backFileName)
+            ])
+            .then(([frontUrl, backUrl]) => {
+                // Update database with URLs
+                Siteuserd.findByIdAndUpdate(
+                    { _id: req.body._id },
+                    {
+                        $push: {
+                            ids: {
+                                idname: 'Certificate',
+                                front: frontUrl,
+                                back: backUrl,
                             }
                         }
-
-
-                    )
-                })
-
-                resolve(url);
-
-
+                    },
+                    (error, success) => {
+                        if (error) {
+                            console.log(error);
+                            res.send('error');
+                        } else {
+                            if (!success) {
+                                res.send('invalid');
+                            } else {
+                                res.status(200).json({ 'Siteuserd': { front: frontUrl, back: backUrl } });
+                            }
+                        }
+                    }
+                );
+            })
+            .catch(error => {
+                reject(error);
             });
-        })
+        });
     };
     uploadPicture()
 

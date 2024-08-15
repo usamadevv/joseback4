@@ -29,6 +29,7 @@
     "nodemailer-smtp-transport": "^2.7.4",
     "react-csv": "^2.2.2",
     "react-tooltip": "^4.2.21",
+    "sharp": "^0.33.4",
     "socket.io": "^4.7.2",
     "twilio": "^4.14.0"
   },

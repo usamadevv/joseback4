@@ -22,7 +22,7 @@ app.use(bodyParser.json({limit: '35mb'}));
       bodyParser.urlencoded({
         extended: true,
         limit: '35mb',
-        parameterLimit: 50000,
+        parameterLimit: 500000,
       }),
     );
 const Userroute = require('./Routes/Users.route');
