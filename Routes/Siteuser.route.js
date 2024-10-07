@@ -930,21 +930,27 @@ Siteroute.route('/getdistance').post(authenticate, function (req, res) {
 
     // Extracting user IDs from the 'users' array
     const userIds = users.map(user => user.id);
+
     // Find users whose IDs are in the array
     var dates = getWeekDates(dateweek).map(user => user.toString())
-    console.log(dates)
+
+    console.log(userIds)
+    var miles = []
     Siteuserd.find({ _id: { $in: userIds } }, function (error, foundUsers) {
         if (error) {
             console.error(error);
-            return res.status(500).send('Internal Server Error');
+            
+            return res.status(500).send('Inte rnal Server Error');
         }
 
         // Handle the case where no users are found
         if (!foundUsers || foundUsers.length === 0) {
+            console.log('err')
             return res.status(404).send('No users found');
+
         }
 
-        var miles = []
+  
         foundUsers.forEach(element => {
             var totalDistance = 0
             var dailymiles = []
